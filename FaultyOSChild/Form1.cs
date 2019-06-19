@@ -10,9 +10,17 @@ using System.Runtime.Serialization.Formatters.Binary;
 using System.Text;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using SharedMemory;
 
 namespace FaultyOSChild
 {
+	[Serializable]
+	public struct Message
+	{
+		public string timestamp;
+		public string count;
+	}
+
 	public partial class Form1 : Form
 	{
 		public Form1()
@@ -21,40 +29,61 @@ namespace FaultyOSChild
 			const int size = 1024;
 			const int length = 1024;
 			int value = 1;
+			richTextBox1.AppendText("Using Shared Memory");
 			while (value <= 100)
 			{
-				using (var mmf = MemoryMappedFile.OpenExisting("Counting"))
+				try
 				{
-					MemoryMappedViewStream mmvStream = mmf.CreateViewStream(0, size);
-
-					BinaryFormatter formatter = new BinaryFormatter();
-
-					byte[] buffer = new byte[size];
-
-					Message msg;
-
-					while (mmvStream.CanRead)
+					//using (var mmf = MemoryMappedFile.OpenExisting(args))
+					//{
+					using (var consumer = new SharedMemory.BufferReadWrite(name: "CountingBuffer"))
 					{
-						mmvStream.Read(buffer, 0, size);
+						//MemoryMappedViewStream mmvStream = mmf.CreateViewStream(0, size);
 
-						msg = (Message)formatter.Deserialize(new MemoryStream(buffer));
+						//BinaryFormatter formatter = new BinaryFormatter();
 
-						DateTime now = DateTime.UtcNow;
-						long unixTime = ((DateTimeOffset)now).ToUnixTimeSeconds();
+						//byte[] buffer = new byte[size];
 
-						if (msg.timestamp != unixTime)
-						{
-							msg.count++;
-							richTextBox1.AppendText("Incrementing count: " + msg.count + "\n");
-						}
+						//Message msg;
+						//richTextBox1.AppendText("found Counting file\n");
 
-						value = msg.count;
+						//while (mmvStream.CanRead)
+						//{
+						//	richTextBox1.AppendText("Reading mmvStream\n");
 
-						Console.WriteLine("Count: " + msg.count.ToString());
+						//	mmvStream.Read(buffer, 0, size);
 
-						formatter.Serialize(mmvStream, msg);
-						mmvStream.Seek(0, System.IO.SeekOrigin.Begin);
+						//	msg = (Message)formatter.Deserialize(new MemoryStream(buffer));
+
+						//	DateTime now = DateTime.UtcNow;
+						//	long unixTime = ((DateTimeOffset)now).ToUnixTimeSeconds();
+
+						//	//if (msg.timestamp != unixTime)
+						//	//{
+						//	//	msg.count++;
+						//	//	richTextBox1.AppendText("Incrementing count: " + msg.count + "\n");
+						//	//}
+
+						//	//value = msg.count;
+
+						//	richTextBox1.AppendText("Count: " + msg.count);
+						//	richTextBox1.AppendText("Timestamp: " + msg.timestamp);
+
+						//	formatter.Serialize(mmvStream, msg);
+						//	mmvStream.Seek(0, System.IO.SeekOrigin.Begin);
+						//}
+						int count;
+						long timestamp;
+						consumer.Read<int>(out count, 0);
+						consumer.Read<long>(out timestamp, 500);
+						richTextBox1.AppendText("Count: " + count.ToString() + ", timestamp: " + timestamp.ToString());
 					}
+				}
+				catch (Exception ex)
+				{
+					richTextBox1.AppendText(ex.ToString());
+					value = 101;
+					break;
 				}
 			}
 		}
@@ -63,11 +92,5 @@ namespace FaultyOSChild
 		{
 
 		}
-	}
-	[Serializable]
-	class Message
-	{
-		public long timestamp;
-		public int count;
 	}
 }
